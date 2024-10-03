@@ -8,8 +8,16 @@
 <h2>Заметки</h2>
 
 <ul>
-    <li><code>Matrix::multiply</code> - Однопоточное перемножение матриц</li>
-    <li><code>Matrix::multiple_threads_multiply</code> - Многопоточное перемножение матриц</li>
-    <li><code>a * b</code> - использует многопоточный варинт перемножения</li>
-    <li>Смотреть реализацию <code>Matrix</code> в lib.rs</li>
+    <li>
+        <code>Matrix::multiply</code> - Однопоточное перемножение матриц.
+    </li>
+    <li>
+        <code>Matrix::multiple_threads_multiply</code> - Многопоточное перемножение матриц. Забирает значения во владение, т.к. используется в операции умножения.
+    </li>
+    <li>
+        <code>a * b</code> - использует многопоточный варинт перемножения. См. выше.
+    </li>
+    <li>
+        Смотреть реализацию <code>Matrix</code> в lib.rs
+    </li>
 </ul>

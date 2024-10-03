@@ -2,7 +2,7 @@ use std::{
     fmt::{Debug, Display},
     ops::Mul,
     sync::{Arc, Mutex},
-    thread,
+    thread::{self},
 };
 
 use rand::Rng;
@@ -111,7 +111,7 @@ impl Matrix {
         Matrix::new(new_matrix_data)
     }
 
-    pub fn multiple_threads_multiply(a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
+    pub fn multiple_threads_multiply(a: Matrix, b: Matrix) -> Result<Matrix, String> {
         if !Matrix::can_multiply(&a, &b) {
             return Err(format!("Cannot multiply {} and {}", a, b));
         }
@@ -127,46 +127,55 @@ impl Matrix {
         let threads_count = b.0[0].len();
 
         let new_matrix_data = Arc::new(Mutex::new(new_matrix_data));
-        let a = Arc::new(Mutex::new(a.0.clone()));
-        let b = Arc::new(Mutex::new(b.0.clone()));
+        let a = Arc::new(a);
+        let b = Arc::new(b);
 
         for h in 0..threads_count {
-            let new_matrix_data = Arc::clone(&new_matrix_data);
             let a = Arc::clone(&a);
             let b = Arc::clone(&b);
+            let new_matrix_data = Arc::clone(&new_matrix_data);
 
             let handle = thread::spawn(move || {
-                let mut new_matrix_data = new_matrix_data.lock().unwrap();
-                let a = a.lock().unwrap();
-                let b = b.lock().unwrap();
-
                 let mut g = 0;
 
-                while g < a.len() {
+                while g < a.0.len() {
                     let mut sum = 0;
 
                     let mut k = 0;
 
-                    while k < b.len() {
-                        sum += a[g][k] * b[k][h];
+                    while k < b.0.len() {
+                        sum += a.0[g][k] * b.0[k][h];
 
                         k += 1;
                     }
 
-                    new_matrix_data[g].push(sum);
+                    match new_matrix_data.lock() {
+                        Ok(mut data) => data[g].push(sum),
+                        Err(_) => return Err(()),
+                    }
 
                     g += 1;
                 }
+
+                Ok(())
             });
 
             handles.push(handle);
         }
 
         for handle in handles {
-            handle.join().unwrap();
+            match handle.join() {
+                Ok(_) => continue,
+                Err(_) => return Err("Cannot lock new matrix data in thread".to_string()),
+            }
         }
 
-        Matrix::new(new_matrix_data.clone().lock().unwrap().to_owned())
+        let new_matrix_data_lock = new_matrix_data.lock();
+
+        match new_matrix_data_lock {
+            Ok(data) => Matrix::new(data.to_owned()),
+            Err(_) => Err("Cannot finally lock new matrix mutex".to_string()),
+        }
     }
 }
 
@@ -180,7 +189,9 @@ impl Mul for Matrix {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self::multiple_threads_multiply(&self, &rhs).unwrap()
+        // Panic through unwrap is done using the example of division by 0
+        // Security guarantee in full error handling in the method
+        Self::multiple_threads_multiply(self, rhs).unwrap()
     }
 }
 
@@ -211,6 +222,8 @@ impl Debug for Matrix {
 #[cfg(test)]
 mod tests {
     use crate::Matrix;
+
+    // Error handling via unwrap in tests, because behavior is predictable
 
     #[test]
     fn generate_matrix_test() {
@@ -251,6 +264,6 @@ mod tests {
         let a = Matrix::generate(5, 18).unwrap();
         let b = Matrix::generate(17, 9).unwrap();
 
-        assert!(Matrix::multiple_threads_multiply(&a, &b).is_err());
+        assert!(Matrix::multiple_threads_multiply(a, b).is_err());
     }
 }
